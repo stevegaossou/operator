@@ -19,29 +19,12 @@ var _ = Describe("LogStorage controller tests", func() {
 	var mgr manager.Manager
 	BeforeEach(func() {
 		c, mgr = setupManager()
-		//ns := &corev1.Namespace{
-		//	TypeMeta:   metav1.TypeMeta{Kind: "Namespace", APIVersion: "v1"},
-		//	ObjectMeta: metav1.ObjectMeta{Name: "tigera-operator"},
-		//	Spec:       corev1.NamespaceSpec{},
-		//}
-		//err := c.Create(context.Background(), ns)
-		//if err != nil && !kerror.IsAlreadyExists(err) {
-		//	Expect(err).NotTo(HaveOccurred())
-		//}
 	})
-	//var c client.Client
-	//BeforeEach(func() {
-	//	// Create a Kubernetes client.
-	//	cfg, err := config.GetConfig()
-	//	Expect(err).NotTo(HaveOccurred())
-	//	c, err = client.New(cfg, client.Options{})
-	//	Expect(err).NotTo(HaveOccurred())
-	//})
 
 	It("should query a default LogStorage instance", func() {
 		By("Creating a CRD")
 		instance := &operatorv1.LogStorage{
-			TypeMeta:   metav1.TypeMeta{Kind: "logstorages"},
+			TypeMeta:   metav1.TypeMeta{Kind: "LogStorage"},
 			ObjectMeta: metav1.ObjectMeta{Name: "tigera-secure"},
 			Spec: operatorv1.LogStorageSpec{
 				Nodes: &operatorv1.Nodes{
@@ -56,6 +39,7 @@ var _ = Describe("LogStorage controller tests", func() {
 		_, err = GetLogStorage(context.Background(), c)
 		Expect(err).NotTo(HaveOccurred())
 
+		// TODO: get rid of this before merging
 		By("Running the operator")
 		stopChan := RunOperator(mgr)
 		defer close(stopChan)
