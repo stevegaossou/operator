@@ -41,7 +41,13 @@ var _ = Describe("LogStorage controller tests", func() {
 	It("should query a default LogStorage instance", func() {
 		By("Creating a CRD")
 		instance := &operatorv1.LogStorage{
+			TypeMeta:   metav1.TypeMeta{Kind: "logstorages"},
 			ObjectMeta: metav1.ObjectMeta{Name: "tigera-secure"},
+			Spec: operatorv1.LogStorageSpec{
+				Nodes: &operatorv1.Nodes{
+					Count: 1,
+				},
+			},
 		}
 		err := c.Create(context.Background(), instance)
 		if err != nil && !kerror.IsAlreadyExists(err) {
