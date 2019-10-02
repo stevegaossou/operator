@@ -17,6 +17,7 @@ import (
 var _ = Describe("LogStorage controller tests", func() {
 	var c client.Client
 	var mgr manager.Manager
+	//var reconciler reconcile.Reconciler
 	BeforeEach(func() {
 		c, mgr = setupManager()
 	})
@@ -24,8 +25,8 @@ var _ = Describe("LogStorage controller tests", func() {
 	It("should query a default LogStorage instance", func() {
 		By("Creating a CRD")
 		instance := &operatorv1.LogStorage{
-			TypeMeta:   metav1.TypeMeta{Kind: "LogStorage"},
-			ObjectMeta: metav1.ObjectMeta{Name: "tigera-secure"},
+			TypeMeta:   metav1.TypeMeta{Kind: "LogStorage", APIVersion: "operator.tigera.io/v1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "tigera-secure", SelfLink: "/apis/operator.tigera.io/v1/logstorages/tigera-secure"},
 			Spec: operatorv1.LogStorageSpec{
 				Nodes: &operatorv1.Nodes{
 					Count: 1,
@@ -36,13 +37,17 @@ var _ = Describe("LogStorage controller tests", func() {
 		if err != nil && !kerror.IsAlreadyExists(err) {
 			Expect(err).NotTo(HaveOccurred())
 		}
+
+		// add new logstorage controller to manager
+		err = Add(mgr, operatorv1.ProviderNone, true)
+		Expect(err).NotTo(HaveOccurred())
 		_, err = GetLogStorage(context.Background(), c)
 		Expect(err).NotTo(HaveOccurred())
 
-		// TODO: get rid of this before merging
-		By("Running the operator")
-		stopChan := RunOperator(mgr)
-		defer close(stopChan)
+		//// TODO: get rid of this before merging
+		//By("Running the operator")
+		//stopChan := RunOperator(mgr)
+		//defer close(stopChan)
 	})
 })
 
@@ -61,14 +66,14 @@ func setupManager() (client.Client, manager.Manager) {
 	Expect(err).NotTo(HaveOccurred())
 	return mgr.GetClient(), mgr
 }
-
-func RunOperator(mgr manager.Manager) chan struct{} {
-	stopChan := make(chan struct{})
-	go func() {
-		defer GinkgoRecover()
-		err := mgr.Start(stopChan)
-		Expect(err).NotTo(HaveOccurred())
-	}()
-	return stopChan
-}
+//
+//func RunOperator(mgr manager.Manager) chan struct{} {
+//	stopChan := make(chan struct{})
+//	go func() {
+//		defer GinkgoRecover()
+//		err := mgr.Start(stopChan)
+//		Expect(err).NotTo(HaveOccurred())
+//	}()
+//	return stopChan
+//}
 
