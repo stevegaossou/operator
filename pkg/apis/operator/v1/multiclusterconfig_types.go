@@ -8,6 +8,8 @@ import (
 // +k8s:openapi-gen=true
 type MulticlusterConfigSpec struct {
 
+	// For typical setups the default value is "standalone". For a scenario with multiple clusters, one "management"
+	// cluster can be configured to establish a secure connection with one or more "managed" clusters.
 	// Valid values for this field are: "standalone", "management", "managed"
 	// +optional
 	// +kubebuilder:validation:Enum=standalone,management,managed
@@ -20,11 +22,6 @@ type MulticlusterConfigSpec struct {
 	// Specify the port that the management cluster is listening on.
 	// +optional
 	ManagementClusterPort int `json:"managementClusterPort,omitempty"`
-
-	// This certificate is used to establish a secure connection between clusters. If this field is omitted, a
-	// self-signed certificate will be created when a managed cluster is added to a management cluster.
-	// +optional
-	ManagedClusterIdentityCert string `json:"managedClusterIdentityCert,omitempty"`
 }
 
 // MulticlusterConfigStatus defines the observed state of MulticlusterConfig
