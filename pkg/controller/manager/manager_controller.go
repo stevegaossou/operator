@@ -272,27 +272,18 @@ func (r *ReconcileManager) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	var management = installation.Spec.ClusterManagementType == operatorv1.ClusterManagementTypeManagement
 	var tunnelSecret *corev1.Secret
-	var voltronAnnotation *string
 	if management {
 
-		// If clusterType is management and the customer brings it's own cert, copy it over to the manager ns.
-		tunnelSecret, err = utils.CopyTunnelSecret(ctx, r.client)
+		// If clusterType is management and the customer brings its own cert, copy it over to the manager ns.
+		tunnelSecret = &corev1.Secret{}
+		err := r.client.Get(ctx, client.ObjectKey{Name: render.VoltronTunnelSecretName, Namespace: render.OperatorNamespace()}, tunnelSecret)
 		if err != nil {
-			r.status.SetDegraded("Failed to copy management-cluster-connection secret", err.Error())
-			return reconcile.Result{}, err
-		}
-
-		// Calculate the hash that we add as an annotation to the deployment.
-		if tunnelSecret != nil {
-			voltronAnnotationStr := render.AnnotationHash(tunnelSecret.Data)
-			voltronAnnotation = &voltronAnnotationStr
-		}
-
-	} else {
-		err = utils.RemoveMagementClusterResources(ctx, r.client)
-		if err != nil {
-			r.status.SetDegraded("Failed to clean up management cluster resources", err.Error())
-			return reconcile.Result{}, err
+			if errors.IsNotFound(err) {
+				tunnelSecret = nil
+			} else {
+				r.status.SetDegraded("Failed to check for the existence of management-cluster-connection secret", err.Error())
+				return reconcile.Result{}, nil
+			}
 		}
 	}
 
@@ -311,7 +302,7 @@ func (r *ReconcileManager) Reconcile(request reconcile.Request) (reconcile.Resul
 		installation.Spec.Registry,
 		oidcConfig,
 		management,
-		voltronAnnotation,
+		tunnelSecret,
 	)
 	if err != nil {
 		log.Error(err, "Error rendering Manager")

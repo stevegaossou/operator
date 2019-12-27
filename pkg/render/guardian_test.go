@@ -4,6 +4,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tigera/operator/pkg/render"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,19 +16,30 @@ var _ = Describe("Rendering tests", func() {
 
 	BeforeEach(func() {
 		addr := "127.0.0.1:1234"
-
+		secret := &corev1.Secret{
+			TypeMeta: metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      render.GuardianSecretName,
+				Namespace: render.OperatorNamespace(),
+			},
+			Data: map[string][]byte{
+				"cert": []byte("foo"),
+				"key":  []byte("bar"),
+			},
+		}
 		g, _ = render.Guardian(
 			addr,
 			[]*corev1.Secret{},
 			"cluster",
 			false,
 			"my-reg",
+			secret,
 		)
 		resources = g.Objects()
 	})
 
 	It("should render all resources for a managed cluster", func() {
-		Expect(len(resources)).To(Equal(6))
+		Expect(len(resources)).To(Equal(7))
 
 		expectedResources := []struct {
 			name    string
@@ -42,6 +54,7 @@ var _ = Describe("Rendering tests", func() {
 			{name: render.GuardianClusterRoleBindingName, ns: "", group: "rbac.authorization.k8s.io", version: "v1", kind: "ClusterRoleBinding"},
 			{name: render.GuardianDeploymentName, ns: render.GuardianNamespace, group: "apps", version: "v1", kind: "Deployment"},
 			{name: render.GuardianConfigMapName, ns: render.GuardianNamespace, group: "", version: "v1", kind: "ConfigMap"},
+			{name: render.GuardianSecretName, ns: render.GuardianNamespace, group: "", version: "v1", kind: "Secret"},
 		}
 		i := 0
 		for _, expectedRes := range expectedResources {

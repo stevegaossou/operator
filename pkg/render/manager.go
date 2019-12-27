@@ -63,7 +63,7 @@ func Manager(
 	registry string,
 	oidcConfig *corev1.ConfigMap,
 	management bool,
-	voltronTunnelHashAnnotation *string,
+	tunnelSecret *corev1.Secret,
 ) (Component, error) {
 	tlsSecrets := []*corev1.Secret{}
 	if tlsKeyPair == nil {
@@ -85,17 +85,17 @@ func Manager(
 	copy.ObjectMeta = metav1.ObjectMeta{Name: ManagerTLSSecretName, Namespace: ManagerNamespace}
 	tlsSecrets = append(tlsSecrets, copy)
 	return &managerComponent{
-		cr:                          cr,
-		esSecrets:                   esSecrets,
-		kibanaSecrets:               kibanaSecrets,
-		clusterName:                 clusterName,
-		tlsSecrets:                  tlsSecrets,
-		pullSecrets:                 pullSecrets,
-		openshift:                   openshift,
-		registry:                    registry,
-		oidcConfig:                  oidcConfig,
-		management:                  management,
-		voltronTunnelHashAnnotation: voltronTunnelHashAnnotation,
+		cr:            cr,
+		esSecrets:     esSecrets,
+		kibanaSecrets: kibanaSecrets,
+		clusterName:   clusterName,
+		tlsSecrets:    tlsSecrets,
+		pullSecrets:   pullSecrets,
+		openshift:     openshift,
+		registry:      registry,
+		oidcConfig:    oidcConfig,
+		management:    management,
+		tunnelSecret:  tunnelSecret,
 	}, nil
 }
 
@@ -111,8 +111,8 @@ type managerComponent struct {
 	oidcConfig    *corev1.ConfigMap
 	// If true, this is a management cluster.
 	management bool
-	// The hash of the secret's data if the secret is already present in the cluster. (Management clusters only)
-	voltronTunnelHashAnnotation *string
+	// The tunnel secret if present in the operator namespace
+	tunnelSecret *corev1.Secret
 }
 
 func (c *managerComponent) Objects() []runtime.Object {
@@ -143,17 +143,20 @@ func (c *managerComponent) Objects() []runtime.Object {
 	if c.oidcConfig != nil {
 		objs = append(objs, copyConfigMaps(ManagerNamespace, c.oidcConfig)...)
 	}
+	var voltronAnnotation *string
 	if c.management {
-		// No annotation means there is no secret yet and we should create one.
-		if c.voltronTunnelHashAnnotation == nil {
+		// If there is no secret, we should create one.
+		if c.tunnelSecret == nil {
 			voltronTunnelSecret := c.voltronTunnelSecret()
-			voltronAnnotation := AnnotationHash(voltronTunnelSecret.Data)
-			c.voltronTunnelHashAnnotation = &voltronAnnotation
+			annotation := AnnotationHash(voltronTunnelSecret.Data)
+			voltronAnnotation = &annotation
 			objs = append(objs, voltronTunnelSecret)
+		} else {
+			objs = append(objs, copySecrets(ManagerNamespace, []*v1.Secret{c.tunnelSecret}...)...)
 		}
 	}
 	// ManagerDeployment needs to be added after the voltron annotation has been created.
-	objs = append(objs, c.managerDeployment())
+	objs = append(objs, c.managerDeployment(voltronAnnotation))
 
 	return objs
 }
@@ -163,7 +166,7 @@ func (c *managerComponent) Ready() bool {
 }
 
 // managerDeployment creates a deployment for the Tigera Secure manager component.
-func (c *managerComponent) managerDeployment() *appsv1.Deployment {
+func (c *managerComponent) managerDeployment(voltronAnnotation *string) *appsv1.Deployment {
 	var replicas int32 = 1
 	annotations := map[string]string{
 		// Mark this pod as a critical add-on; when enabled, the critical add-on scheduler
@@ -171,8 +174,8 @@ func (c *managerComponent) managerDeployment() *appsv1.Deployment {
 		// a failure.  This annotation works in tandem with the toleration below.
 		"scheduler.alpha.kubernetes.io/critical-pod": "",
 	}
-	if c.voltronTunnelHashAnnotation != nil {
-		annotations[voltronTunnelHashAnnotation] = *c.voltronTunnelHashAnnotation
+	if voltronAnnotation != nil {
+		annotations[voltronTunnelHashAnnotation] = *voltronAnnotation
 	}
 	if len(c.tlsSecrets) > 0 {
 		// Add a hash of the Secret to ensure if it changes the manager will be
@@ -393,7 +396,7 @@ func (c *managerComponent) managerOAuth2EnvVars() []v1.EnvVar {
 func (c *managerComponent) managerProxyContainer() corev1.Container {
 	return corev1.Container{
 		Name:  VoltronName,
-		Image: constructImage(ManagerProxyImageName, c.registry),
+		Image: "gcr.io/tigera-dev/cnx/tigera/voltron:f676b92cef8c",
 		Env: []corev1.EnvVar{
 			{Name: "VOLTRON_PORT", Value: strconv.Itoa(DefaultVoltronPort)},
 			{Name: "VOLTRON_COMPLIANCE_ENDPOINT", Value: fmt.Sprintf("https://compliance.%s.svc", ComplianceNamespace)},

@@ -31,22 +31,25 @@ func Guardian(
 	clusterName string,
 	openshift bool,
 	registry string,
+	tunnelSecret *corev1.Secret,
 ) (Component, error) {
 	return &GuardianComponent{
-		url:         url,
-		pullSecrets: pullSecrets,
-		clusterName: clusterName,
-		openshift:   openshift,
-		registry:    registry,
+		url:          url,
+		pullSecrets:  pullSecrets,
+		clusterName:  clusterName,
+		openshift:    openshift,
+		registry:     registry,
+		tunnelSecret: tunnelSecret,
 	}, nil
 }
 
 type GuardianComponent struct {
-	url         string
-	pullSecrets []*v1.Secret
-	clusterName string
-	openshift   bool
-	registry    string
+	url          string
+	pullSecrets  []*v1.Secret
+	clusterName  string
+	openshift    bool
+	registry     string
+	tunnelSecret *corev1.Secret
 }
 
 func (c *GuardianComponent) Objects() []runtime.Object {
@@ -57,7 +60,15 @@ func (c *GuardianComponent) Objects() []runtime.Object {
 		c.ClusterRoleBinding(),
 		c.Deployment(),
 		c.ConfigMap(),
+		c.TunnelSecret(),
 	}
+}
+
+func (c *GuardianComponent) TunnelSecret() runtime.Object {
+	if c.tunnelSecret == nil {
+		panic("HOW DID THIS HAPPEN?!")
+	}
+	return copySecrets(GuardianNamespace, c.tunnelSecret)[0]
 }
 
 func (c *GuardianComponent) Ready() bool {
@@ -223,7 +234,7 @@ func (c *GuardianComponent) container() []v1.Container {
 	return []corev1.Container{
 		{
 			Name:  GuardianDeploymentName,
-			Image: constructImage(GuardianImageName, c.registry),
+			Image: "gcr.io/tigera-dev/cnx/tigera/guardian:e221804933c9",
 			Env: []corev1.EnvVar{
 				{
 					Name:      "GUARDIAN_PORT",
